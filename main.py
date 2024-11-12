@@ -9,6 +9,8 @@ import threading
 import tkinter as tk
 from tkinter import simpledialog
 
+from KeyInfoWindow import display_key_info
+
 # Biến toàn cục để kiểm soát trạng thái dừng
 running = True
 
@@ -134,12 +136,30 @@ class ChatApp:
             client_public_key_pem = client.recv(1024)
             client_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), client_public_key_pem)
 
+            # In ra khóa công khai của server dưới dạng PEM thay vì đối tượng
+            client_public_key_to_pem = client_public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            server_public_key_pem = self.public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            server_private_key_pem = self.private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption()  # Nếu không muốn mã hóa khóa riêng
+            )
+
             # Tạo khóa chia sẻ và lưu lại
             shared_key = server_private_key.exchange(ec.ECDH(), client_public_key)
             self.shared_key = shared_key
 
             # Kích hoạt khung chat
             self.enable_chat()
+
+            # Sau khi kết nối và trao đổi khóa thành công
+            display_key_info(server_private_key_pem, server_public_key_pem, shared_key, client_public_key_to_pem, "server")
 
             # Bắt đầu luồng để nhận tin nhắn từ client
             threading.Thread(target=self.receive_message_from_client,
@@ -185,12 +205,28 @@ class ChatApp:
         server_public_key_pem = self.client_socket.recv(1024)
         server_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), server_public_key_pem)
 
+        # In ra khóa công khai của server dưới dạng PEM thay vì đối tượng
+        server_public_key_to_pem = server_public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        client_public_key_pem = self.public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        client_private_key_pem = self.private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()  # Nếu không muốn mã hóa khóa riêng
+        )
         # Tạo khóa chia sẻ và lưu lại
         shared_key = client_private_key.exchange(ec.ECDH(), server_public_key)
         self.shared_key = shared_key
 
         # Kích hoạt khung chat
         self.enable_chat()
+
+        display_key_info(client_private_key_pem, client_public_key_pem, shared_key, server_public_key_to_pem, "client")
 
         # Bắt đầu luồng để nhận tin nhắn từ client
         threading.Thread(target=self.receive_message_from_server,
@@ -212,6 +248,10 @@ class ChatApp:
             signature = sign_ECC(self.private_key, message_bytes)
 
             try:
+                # Cập nhật cửa sổ KeyInfoWindow với chữ ký của tin nhắn gửi
+                if hasattr(self, "key_info_window"):
+                    self.key_info_window.update_signature_display(signature, "Gửi")
+
                 if self.connection_type == "server" and self.server_socket:
                     if is_socket_connected(self.server_socket):  # Kiểm tra kết nối
                         self.server_socket.sendall(len(cipher_text).to_bytes(4, 'big'))
@@ -272,6 +312,10 @@ class ChatApp:
 
                     # Hiển thị tin nhắn trên giao diện
                     self.display_message(message, "Client")
+
+                    # Cập nhật chữ ký nhận vào cửa sổ KeyInfoWindow
+                    if hasattr(self, "key_info_window"):
+                        self.key_info_window.update_signature_display(signature, "Nhận")
                 else:
                     print(f"Invalid signature from {addr}!")
 
@@ -322,6 +366,9 @@ class ChatApp:
 
                     # Hiển thị phản hồi từ server
                     self.display_message(message, "Server")
+                    # Cập nhật chữ ký nhận vào cửa sổ KeyInfoWindow
+                    if hasattr(self, "key_info_window"):
+                        self.key_info_window.update_signature_display(signature, "Nhận")
                 else:
                     print("Invalid server signature!")
 
@@ -348,9 +395,12 @@ class ChatApp:
         self.chat_text.config(state=tk.DISABLED)
         self.chat_text.see(tk.END)
 
-if __name__ == "__main__":
+def main():
     root = tk.Tk()
-    app = ChatApp(root)
+    app = ChatApp(root)  # Giả sử ChatApp là lớp giao diện chính của bạn
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
 
 
