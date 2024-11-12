@@ -73,6 +73,7 @@ class ChatApp:
         self.private_key = None
         self.public_key = None
         self.connection_type = ""
+        self.key_info_window = None
 
         # Nút "Khởi tạo phòng chat" và "Tham gia phòng chat"
         self.create_room_button = tk.Button(root, text="Khởi tạo phòng chat", command=self.create_room)
@@ -159,7 +160,7 @@ class ChatApp:
             self.enable_chat()
 
             # Sau khi kết nối và trao đổi khóa thành công
-            display_key_info(server_private_key_pem, server_public_key_pem, shared_key, client_public_key_to_pem, "server")
+            self.key_info_window = display_key_info(self.root, server_private_key_pem, server_public_key_pem, shared_key, client_public_key_to_pem, "server")
 
             # Bắt đầu luồng để nhận tin nhắn từ client
             threading.Thread(target=self.receive_message_from_client,
@@ -226,7 +227,8 @@ class ChatApp:
         # Kích hoạt khung chat
         self.enable_chat()
 
-        display_key_info(client_private_key_pem, client_public_key_pem, shared_key, server_public_key_to_pem, "client")
+        # Cập nhật việc gọi hàm display_key_info với tham số root
+        self.key_info_window = display_key_info(self.root, client_private_key_pem, client_public_key_pem, shared_key, server_public_key_to_pem, "client")
 
         # Bắt đầu luồng để nhận tin nhắn từ client
         threading.Thread(target=self.receive_message_from_server,
@@ -246,14 +248,17 @@ class ChatApp:
             message_bytes = message.encode('utf-8')
             cipher_text = encrypt_AES(self.shared_key, message_bytes)
             signature = sign_ECC(self.private_key, message_bytes)
+            print(f"Chữ ký gửi: {signature.hex()}")
 
             try:
                 # Cập nhật cửa sổ KeyInfoWindow với chữ ký của tin nhắn gửi
-                if hasattr(self, "key_info_window"):
+                if self.key_info_window:
                     self.key_info_window.update_signature_display(signature, "Gửi")
+                else:
+                    print("key_info_window is not initialized yet.")
 
                 if self.connection_type == "server" and self.server_socket:
-                    if is_socket_connected(self.server_socket):  # Kiểm tra kết nối
+                    if is_socket_connected(self.server_socket):
                         self.server_socket.sendall(len(cipher_text).to_bytes(4, 'big'))
                         self.server_socket.sendall(cipher_text)
                         self.server_socket.sendall(len(signature).to_bytes(4, 'big'))
@@ -261,7 +266,7 @@ class ChatApp:
                     else:
                         print("server_socket đã không còn kết nối.")
                 elif self.connection_type == "client" and self.client_socket:
-                    if is_socket_connected(self.client_socket):  # Kiểm tra kết nối
+                    if is_socket_connected(self.client_socket):
                         self.client_socket.sendall(len(cipher_text).to_bytes(4, 'big'))
                         self.client_socket.sendall(cipher_text)
                         self.client_socket.sendall(len(signature).to_bytes(4, 'big'))
@@ -301,7 +306,6 @@ class ChatApp:
                 if not cipher_text or not signature:
                     print("Cipher text or signature is missing.")
                     break
-
                 # Giải mã tin nhắn
                 decrypted_message = decrypt_AES(shared_key, cipher_text)
 
@@ -312,10 +316,14 @@ class ChatApp:
 
                     # Hiển thị tin nhắn trên giao diện
                     self.display_message(message, "Client")
+                    print(f"Chữ ký nhận: {signature.hex()}")
 
                     # Cập nhật chữ ký nhận vào cửa sổ KeyInfoWindow
-                    if hasattr(self, "key_info_window"):
+                    if self.key_info_window:
                         self.key_info_window.update_signature_display(signature, "Nhận")
+                    else:
+                        print("key_info_window is not initialized yet.")
+
                 else:
                     print(f"Invalid signature from {addr}!")
 
@@ -366,9 +374,10 @@ class ChatApp:
 
                     # Hiển thị phản hồi từ server
                     self.display_message(message, "Server")
+
                     # Cập nhật chữ ký nhận vào cửa sổ KeyInfoWindow
                     if hasattr(self, "key_info_window"):
-                        self.key_info_window.update_signature_display(signature, "Nhận")
+                        self.key_info_window.update_signature_display(signature, "Nhận")  # Nhận chữ ký
                 else:
                     print("Invalid server signature!")
 
@@ -402,5 +411,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
