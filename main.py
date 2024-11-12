@@ -316,7 +316,6 @@ class ChatApp:
 
                     # Hiển thị tin nhắn trên giao diện
                     self.display_message(message, "Client")
-                    print(f"Chữ ký nhận: {signature.hex()}")
 
                     # Cập nhật chữ ký nhận vào cửa sổ KeyInfoWindow
                     if self.key_info_window:
@@ -376,8 +375,10 @@ class ChatApp:
                     self.display_message(message, "Server")
 
                     # Cập nhật chữ ký nhận vào cửa sổ KeyInfoWindow
-                    if hasattr(self, "key_info_window"):
-                        self.key_info_window.update_signature_display(signature, "Nhận")  # Nhận chữ ký
+                    if self.key_info_window:
+                        self.key_info_window.update_signature_display(signature, "Nhận")
+                    else:
+                        print("key_info_window is not initialized yet.")
                 else:
                     print("Invalid server signature!")
 
