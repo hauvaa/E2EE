@@ -4,7 +4,7 @@ from tkinter import messagebox
 class KeyInfoWindow:
     def __init__(self, root, private_key, public_key, shared_key, peer_public_key, source):
         self.window = tk.Toplevel(root)
-        self.window.title(f"{source}")
+        self.window.title("Infomation")
         self.window.geometry("1000x450")  # Giới hạn kích thước cửa sổ là 1000x400
 
         # Định nghĩa font chữ với kích thước lớn hơn
